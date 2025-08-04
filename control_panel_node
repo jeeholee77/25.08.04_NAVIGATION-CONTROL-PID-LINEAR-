@@ -21,7 +21,7 @@ class ControlPanelNode(Node):
         self.final_heading = -1
         self.motor_cmd = []
 
-        # 마지막 수신 시간
+        # 마지막 수신 시간 기록용
         self.last_received = {
             'fix': 0,
             'goal': 0,
@@ -32,20 +32,20 @@ class ControlPanelNode(Node):
             'motor': 0
         }
 
-        # 구독자 등록
+        # === 기존 토픽 이름으로 구독자 등록 ===
         self.create_subscription(NavSatFix, '/fix', self.fix_callback, 10)
         self.create_subscription(NavSatFix, '/waypoint/goal', self.goal_callback, 10)
         self.create_subscription(Int32MultiArray, '/waypoint/status', self.status_callback, 10)
         self.create_subscription(Int32, '/waypoint/heading', self.heading_callback, 10)
-        self.create_subscription(Int32MultiArray, '/safe_heading_list', self.safe_heading_callback, 10)
+        self.create_subscription(Int32MultiArray, '/safe_heading', self.safe_heading_callback, 10)
         self.create_subscription(Int32, '/final_heading', self.final_heading_callback, 10)
-        self.create_subscription(Int32MultiArray, '/motor/pwm_cmd', self.motor_cmd_callback, 10)
+        self.create_subscription(Int32MultiArray, '/motor_cmd', self.motor_cmd_callback, 10)
 
-        # 출력 쓰레드 시작
+        # 실시간 출력 쓰레드 실행
         self.print_thread = threading.Thread(target=self.display_loop, daemon=True)
         self.print_thread.start()
 
-    # 콜백들 + 수신 시간 기록
+    # === 콜백 함수들 ===
     def fix_callback(self, msg):
         self.current_position = (f"{msg.latitude:.6f}", f"{msg.longitude:.6f}")
         self.last_received['fix'] = time.monotonic()
@@ -74,13 +74,12 @@ class ControlPanelNode(Node):
         self.motor_cmd = msg.data
         self.last_received['motor'] = time.monotonic()
 
-    # 실시간 화면 출력
+    # === 실시간 상태 출력 ===
     def display_loop(self):
         while rclpy.ok():
             now = time.monotonic()
             print("\033[2J\033[H", end="")  # 화면 clear + 커서 top
 
-            # 현재 위치
             print("📡 Current Position  : ", end="")
             if now - self.last_received['fix'] > 5:
                 print("⚠️ 미수신")
@@ -89,14 +88,12 @@ class ControlPanelNode(Node):
 
             print("────────────────────────────────────────────")
 
-            # 목표 위치
             print("📍 Current Goal      : ", end="")
             if now - self.last_received['goal'] > 5:
                 print("⚠️ 미수신")
             else:
                 print(f"{self.goal_latlon[0]}, {self.goal_latlon[1]}")
 
-            # 목표 상태
             print("🎯 Goal Status       : ", end="")
             if now - self.last_received['status'] > 5:
                 print("⚠️ 미수신")
@@ -109,31 +106,27 @@ class ControlPanelNode(Node):
                     print(f"{goal_number}번 주행중")
                 else:
                     print("정보 없음")
-            print()  # 줄 띄움
+            print()
 
-            # 상대 헤딩
             print("🧭 Waypoint Heading  : ", end="")
             if now - self.last_received['heading'] > 5:
                 print("⚠️ 미수신")
             else:
                 print(f"{self.heading}°")
 
-            # 안전 헤딩
             print("🛡️ Safe Headings     : ", end="")
             if now - self.last_received['safe'] > 5:
                 print("⚠️ 미수신")
             else:
                 print(f"{self.safe_heading_list}")
-            print()  # 줄 띄움
+            print()
 
-            # 실제 주행 방향
             print("✅ Final Heading     : ", end="")
             if now - self.last_received['final'] > 5:
                 print("⚠️ 미수신")
             else:
                 print(f"{self.final_heading}°")
 
-            # 모터 명령
             print("⚙️ Motor PWM Command : ", end="")
             if now - self.last_received['motor'] > 5:
                 print("⚠️ 미수신")
@@ -144,6 +137,7 @@ class ControlPanelNode(Node):
             sys.stdout.flush()
             time.sleep(0.5)
 
+# === 메인 함수 ===
 def main(args=None):
     rclpy.init(args=args)
     node = ControlPanelNode()
